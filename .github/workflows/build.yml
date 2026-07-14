@@ -12,29 +12,22 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install Buildozer and system dependencies
+      - name: Init buildozer.spec (if not present)
         run: |
-          sudo apt update
-          sudo apt install -y git zip unzip openjdk-17-jdk libtinfo5 libstdc++6 \
-            build-essential libffi-dev libssl-dev python3-dev \
-            pkg-config zlib1g-dev xclip
-          pip install --user --upgrade buildozer cython virtualenv
+          pip install --user buildozer cython
+          if [ ! -f buildozer.spec ]; then
+            buildozer init
+            sed -i 's/package.name = myapp/package.name = fletcalc/' buildozer.spec
+            sed -i 's/package.domain = org.test/package.domain = org.fletcalc/' buildozer.spec
+            sed -i 's/# requirements = sqlite3,kivy/requirements = python3,kivy/' buildozer.spec
+          fi
 
-      - name: Build with Buildozer
-        run: |
-          buildozer init
-          
-          # Настраиваем конфигурацию
-          sed -i 's/package.name = myapp/package.name = fletcalc/' buildozer.spec
-          sed -i 's/package.domain = org.test/package.domain = org.fletcalc/' buildozer.spec
-          sed -i 's/# requirements = sqlite3,kivy/requirements = python3,kivy/' buildozer.spec
-          
-          # Указываем Buildozer использовать уже готовый, встроенный в GitHub Android SDK
-          # В нём уже автоматически приняты все лицензии!
-          sed -i 's|#android.sdk_path =|android.sdk_path = /usr/local/lib/android/sdk|' buildozer.spec
-          
-          # Запускаем сборку
-          buildozer -v android debug
+      - name: Build with buildozer-action
+        uses: ArtemSBulgakov/buildozer-action@v1
+        id: buildozer
+        with:
+          command: buildozer android debug
+          buildozer_version: stable
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
