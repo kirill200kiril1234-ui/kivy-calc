@@ -1,30 +1,90 @@
-- name: Install Buildozer
-        run: pip install --user --upgrade buildozer cython virtualenv
+name: Build APK
 
-      - name: Prepare buildozer.spec
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y \
+            git zip unzip openjdk-17-jdk-headless \
+            build-essential libffi-dev libssl-dev \
+            python3-dev pkg-config zlib1g-dev \
+            libtinfo5 libstdc++6 autoconf automake \
+            libtool cmake ccache libltdl-dev
+
+      - name: Install Buildozer & Cython
+        run: |
+          pip install --upgrade pip
+          pip install --upgrade buildozer==1.5.0 cython==0.29.36 virtualenv
+
+      - name: Prepare buildozer.spec (only if missing)
         run: |
           if [ ! -f buildozer.spec ]; then
             buildozer init
             sed -i 's/package.name = myapp/package.name = fletcalc/' buildozer.spec
             sed -i 's/package.domain = org.test/package.domain = org.fletcalc/' buildozer.spec
             sed -i 's/# requirements = sqlite3,kivy/requirements = python3,kivy/' buildozer.spec
+            sed -i 's/#android.archs = arm64-v8a, armeabi-v7a/android.archs = arm64-v8a/' buildozer.spec
           fi
+          # На всякий случай убираем ручные пути к SDK/NDK — пусть buildozer управляет ими сам
+          sed -i '/^android.sdk_path/d' buildozer.spec
+          sed -i '/^android.ndk_path/d' buildozer.spec
 
-      - name: Pre-download Android SDK components
+      # Кэшируем всё тяжёлое: SDK, NDK, gradle-кэш buildozer'а
+      - name: Cache Buildozer global directory
+        uses: actions/cache@v4
+        with:
+          path: ~/.buildozer
+          key: buildozer-global-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
+          restore-keys: |
+            buildozer-global-${{ runner.os }}-
+
+      - name: Cache project .buildozer directory
+        uses: actions/cache@v4
+        with:
+          path: .buildozer
+          key: buildozer-project-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
+          restore-keys: |
+            buildozer-project-${{ runner.os }}-
+
+      - name: Build APK with Buildozer
         run: |
-          # Скачиваем cmdline-tools, если ещё нет
-          mkdir -p $HOME/.buildozer/android/platform
-          cd $HOME/.buildozer/android/platform
-          if [ ! -d "android-sdk" ]; then
-            wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdline-tools.zip
-            unzip -q cmdline-tools.zip -d android-sdk/cmdline-tools
-            mv android-sdk/cmdline-tools/cmdline-tools android-sdk/cmdline-tools/latest
-          fi
-          yes | android-sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=android-sdk --licenses > /dev/null
-          android-sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=android-sdk \
-            "platform-tools" \
-            "build-tools;34.0.0" \
-            "platforms;android-34"
+          yes | buildozer -v android debug 2>&1 | tee buildozer_build.log
 
-      - name: Build with Buildozer
-        run: buildozer -v android debug
+      # Если сборка упала — прикладываем полный лог как артефакт, чтобы удобно смотреть причину
+      - name: Upload build log (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: buildozer-log
+          path: buildozer_build.log
+
+      - name: Upload APK
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: calculator-apk
+          path: bin/*.apk
