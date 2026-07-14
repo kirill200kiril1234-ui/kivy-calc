@@ -1,0 +1,40 @@
+name: Build APK
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Buildozer and system dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y git zip unzip openjdk-17-jdk libtinfo5 libstdc++6 \
+            build-essential libffi-dev libssl-dev python3-dev \
+            pkg-config zlib1g-dev xclip
+          pip install --user --upgrade buildozer cython virtualenv
+
+      - name: Build with Buildozer
+        run: |
+          buildozer init
+          sed -i 's/package.name = myapp/package.name = fletcalc/' buildozer.spec
+          sed -i 's/package.domain = org.test/package.domain = org.fletcalc/' buildozer.spec
+          sed -i 's/# requirements = sqlite3,kivy/requirements = python3,kivy/' buildozer.spec
+          
+          # Авто-согласие с лицензиями Android SDK перед запуском
+          mkdir -p ~/.android
+          touch ~/.android/repositories.cfg
+          yes | buildozer android clean
+          yes | buildozer -v android debug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: calculator-apk
+          path: bin/*.apk
