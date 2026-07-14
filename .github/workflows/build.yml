@@ -21,17 +21,19 @@ jobs:
           pip install --user --upgrade buildozer cython virtualenv
 
       - name: Build with Buildozer
+        env:
+          # Автоматически принимаем ВСЕ лицензии Android SDK без лишних вопросов в терминале
+          APP_ANDROID_ACCEPT_SDK_LICENSE: "y"
         run: |
           buildozer init
+          
+          # Настраиваем параметры сборщика под Kivy-калькулятор
           sed -i 's/package.name = myapp/package.name = fletcalc/' buildozer.spec
           sed -i 's/package.domain = org.test/package.domain = org.fletcalc/' buildozer.spec
           sed -i 's/# requirements = sqlite3,kivy/requirements = python3,kivy/' buildozer.spec
           
-          # Авто-согласие с лицензиями Android SDK перед запуском
-          mkdir -p ~/.android
-          touch ~/.android/repositories.cfg
-          yes | buildozer android clean
-          yes | buildozer -v android debug
+          # Запускаем прямую сборку (без принудительного clean)
+          buildozer -v android debug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
