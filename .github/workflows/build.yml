@@ -29,10 +29,14 @@ jobs:
           sed -i 's/package.domain = org.test/package.domain = org.fletcalc/' buildozer.spec
           sed -i 's/# requirements = sqlite3,kivy/requirements = python3,kivy/' buildozer.spec
           
-          # Самый важный шаг: скачиваем SDK и принудительно одобряем ВСЕ лицензии Google
-          yes | buildozer android licenses
+          # Принудительно создаем папки для лицензий Android SDK на сервере
+          mkdir -p ~/.buildozer/android/platform/android-sdk/licenses
           
-          # Теперь спокойно запускаем финальную сборку
+          # Записываем хэши согласия со всеми лицензиями Google напрямую в файлы (минуя любые вопросы в консоли)
+          echo -e "\n8933bad161ad5178b1647ab9f59031d499416743\nd56f5187479451eabf01fb78af6dfb13872c3d37\n24302f5446b52ea7b001db7e90c408a5d3e42182\n35db910cb3179a8f3511753c306236b28f80459c\n2f8c543c535fc28d313cf20875e2f11186e2467d\n84831b9409646a918e30573bab4c9c91346d8ec1\ned3905031f00a6fa071274e78fec56999711a97c" > ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
+          echo -e "\n84831b9409646a918e30573bab4c9c91346d8ec1\ntry" > ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-preview-license
+          
+          # Запускаем чистую сборку. Теперь Android SDK увидит файлы лицензий и пойдет собирать дальше!
           buildozer -v android debug
 
       - name: Upload APK
