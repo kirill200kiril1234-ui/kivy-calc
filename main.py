@@ -78,6 +78,16 @@ FONT_SMALL = sp(17)
 DATA_FILE = "notes.json"
 RADIUS = dp(20)
 
+# Список популярных марок машин для автодополнения при добавлении
+CAR_BRANDS = [
+    "Opel", "Toyota", "Volkswagen", "BMW", "Mercedes-Benz", "Audi",
+    "Ford", "Renault", "Peugeot", "Skoda", "Kia", "Hyundai", "Nissan",
+    "Mazda", "Honda", "Chevrolet", "Fiat", "Citroen", "Mitsubishi",
+    "Suzuki", "Volvo", "Lexus", "Subaru", "Seat", "Dacia", "Chery",
+    "Geely", "Haval", "Lada", "Daewoo", "Jeep", "Land Rover", "Porsche",
+    "Mini", "Smart", "Infiniti", "Acura", "Alfa Romeo", "Jaguar",
+]
+
 
 def load_data():
     if os.path.exists(DATA_FILE):
@@ -376,9 +386,9 @@ class NotebookApp(App):
         self.refresh_notes()
 
     def open_add_car_popup(self, *_):
-        overlay = ModalView(size_hint=(0.88, 0.42), background_color=(0, 0, 0, 0.6))
+        overlay = ModalView(size_hint=(0.88, 0.62), background_color=(0, 0, 0, 0.6))
         card = RoundedBG(bg=CARD_COLOR, radius=RADIUS, orientation="vertical",
-                          padding=dp(24), spacing=dp(16))
+                          padding=dp(24), spacing=dp(14))
 
         title = Label(
             text="Новая машина", font_size=FONT_BIG, bold=True, color=TEXT,
@@ -388,7 +398,7 @@ class NotebookApp(App):
 
         input_wrap = RoundedBG(bg=CARD_COLOR_LIGHT, radius=dp(14), size_hint_y=None, height=dp(60))
         input_field = TextInput(
-            hint_text="Название машины",
+            hint_text="Начните вводить марку...",
             font_size=FONT_MED,
             background_color=(0, 0, 0, 0),
             foreground_color=TEXT,
@@ -399,6 +409,49 @@ class NotebookApp(App):
         )
         input_wrap.add_widget(input_field)
         card.add_widget(input_wrap)
+
+        # ---------- Подсказки (автодополнение по марке) ----------
+        hint_label = Label(
+            text="Подсказки", font_size=FONT_SMALL, color=SUBTEXT, bold=True,
+            size_hint_y=None, height=dp(22), halign="left",
+        )
+        hint_label.bind(size=lambda w, s: setattr(w, "text_size", s))
+        card.add_widget(hint_label)
+
+        suggestions_scroll = ScrollView(size_hint_y=1, bar_width=dp(3), bar_color=ACCENT)
+        suggestions_box = GridLayout(cols=1, spacing=dp(8), size_hint_y=None, padding=(0, dp(2)))
+        suggestions_box.bind(minimum_height=suggestions_box.setter("height"))
+        suggestions_scroll.add_widget(suggestions_box)
+        card.add_widget(suggestions_scroll)
+
+        def pick_suggestion(name):
+            input_field.text = name
+
+        def update_suggestions(*_):
+            suggestions_box.clear_widgets()
+            query = input_field.text.strip().lower()
+            if query:
+                matches = [b for b in CAR_BRANDS if b.lower().startswith(query)]
+            else:
+                matches = CAR_BRANDS
+            for brand in matches[:8]:
+                item = PrettyButton(
+                    text=brand, bg=CARD_COLOR_LIGHT, bg_soft=CARD_COLOR,
+                    font_size=FONT_SMALL, size_hint_y=None, height=dp(46),
+                )
+                item.bind(on_release=lambda w, n=brand: pick_suggestion(n))
+                suggestions_box.add_widget(item)
+            if not matches:
+                no_match = Label(
+                    text="Марка не найдена — можно ввести своё название",
+                    font_size=FONT_SMALL, color=SUBTEXT,
+                    size_hint_y=None, height=dp(46), halign="left",
+                )
+                no_match.bind(size=lambda w, s: setattr(w, "text_size", s))
+                suggestions_box.add_widget(no_match)
+
+        input_field.bind(text=update_suggestions)
+        update_suggestions()
 
         btn_row = BoxLayout(size_hint_y=None, height=dp(56), spacing=dp(12))
         cancel_btn = PrettyButton(text="Отмена", bg=CARD_COLOR_LIGHT, bg_soft=CARD_COLOR, height=dp(56))
